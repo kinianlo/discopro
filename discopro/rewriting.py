@@ -165,7 +165,6 @@ def _try_contract(diag):
             for i in range(-ob_z_diff):
                 new_self = new_self.l
 
-        print(other_ob_idx)
         perm = diag.permutation([i - min(other_ob_idx) for i in other_ob_idx],
                 other.cod[min(other_ob_idx): max(other_ob_idx)+1])
         new_other = Diagram(other.dom, 
