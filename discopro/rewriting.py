@@ -121,21 +121,25 @@ def _try_contract(diag):
     performed and None is returned.
     """
     for box_idx, self in enumerate(diag.boxes):
-        if not isinstance(self, Word):
+        if isinstance(self, Cup) or isinstance(self, Cap) or isinstance(self, monoidal_Swap):
             continue
 
         paths_list = [follow_wire(diag, box_idx, diag.offsets[box_idx]+ob_idx) for ob_idx in range(len(self.cod))]
 
         other_boxes_idx = [paths[-1]['end'][0] for paths in paths_list]
 
-        if len(other_boxes_idx) != 1:
-            # the box is connected more than one box
+        if len(set(other_boxes_idx)) != 1: # the box is connected more than one box
             continue
         other_box_idx = other_boxes_idx[0]
-        other = diag.boxes[other_box_idx]
-        other_offset = diag.offsets[other_box_idx]
 
-        # Now we have confirmed that 
+        if other_box_idx == len(diag): # self is connected to the boundary
+            continue
+
+        other, other_offset = diag.boxes[other_box_idx], diag.offsets[other_box_idx]
+
+        assert not ( isinstance(other, Cup) or isinstance(other, Cap) or isinstance(other, monoidal_Swap) )
+
+        # Up until now, we have confirmed that self is connect to another word box 
         other_wire_offsets = [paths[-1]['end'][1] for paths in paths_list]
         other_ob_idx = list(map(lambda x: x-other_offset, other_wire_offsets))
 
@@ -165,7 +169,7 @@ def _try_contract(diag):
             for i in range(-ob_z_diff):
                 new_self = new_self.l
 
-        perm = diag.permutation([i - min(other_ob_idx) for i in other_ob_idx],
+        perm = diag.permutation([i - min(other_ob_idx) for i in other_ob_idx[::-1]],
                 other.cod[min(other_ob_idx): max(other_ob_idx)+1])
         new_other = Diagram(other.dom, 
                 Ty(*[ob for i, ob in enumerate(other.cod) if i not in other_ob_idx]),
