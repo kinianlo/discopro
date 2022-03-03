@@ -1,5 +1,6 @@
 import pytest
-from discopy import Word, Cup, Id, Ty
+from discopy import Word, Cup, Id, Ty, Swap
+from discopy.monoidal import Swap as monoidal_Swap
 from discopro.grammar import is_pregroup, tensor, words_and_cups
 
 @pytest.fixture
@@ -35,6 +36,11 @@ def test_words_and_cups_not_pregroup(alice_loves_bob_diagram):
 def test_tensor(alice_loves_bob_diagram):
     diag = alice_loves_bob_diagram
     assert is_pregroup(tensor(diag, diag))
+
+def test_tensor_id(alice_loves_bob_diagram):
+    diag = alice_loves_bob_diagram
+    assert tensor(Id(), diag) == diag
+    assert tensor(diag, Id()) == diag
 
 
 

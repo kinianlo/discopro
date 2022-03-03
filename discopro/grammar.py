@@ -22,6 +22,10 @@ def tensor(self, other):
     """
     Return the tensor product of two pregroup diagrams.
     """
+    if len(self) == 0:
+        return other
+    if len(other) == 0:
+        return self
     f0, g0 = words_and_cups(self)
     f1, g1 = words_and_cups(other)
     return f0 @ f1 >> g0 @ g1
