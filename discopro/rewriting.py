@@ -114,6 +114,19 @@ def follow_wire(diag, box_idx, wire_offset, direction='cod'):
         else:
             return paths
 
+def _try_contract_new(diag):
+    """
+    Attempts to contract a box that is connected to only one 
+    other box. If not such box is found, no contraction will be
+    performed and None is returned.
+
+    Method:
+
+    """
+    pass
+
+
+
 def _try_contract(diag):
     """
     Attempts to contract a box that is connected to only one 
@@ -161,13 +174,14 @@ def _try_contract(diag):
 
         wireboxes_idx = [path['end'][0] for paths in paths_list for path in paths[:-1]]
 
-        new_self = self.dagger()
+        new_self = self
         if ob_z_diff > 0:
             for i in range(ob_z_diff):
                 new_self = new_self.r
         elif ob_z_diff < 0:
             for i in range(-ob_z_diff):
                 new_self = new_self.l
+        new_self = new_self.dagger()
 
         perm = diag.permutation([i - min(other_ob_idx) for i in other_ob_idx[::-1]],
                 other.cod[min(other_ob_idx): max(other_ob_idx)+1])
@@ -184,18 +198,20 @@ def _try_contract(diag):
 
         new_boxes[other_box_idx] = new_other
 
-        new_boxes = [box for i, box in enumerate(new_boxes) if i not in wireboxes_idx]
-        new_offsets = [off for i, off in enumerate(new_offsets) if i not in wireboxes_idx]
+        new_boxes = [box for i, box in enumerate(new_boxes) if i not in wireboxes_idx + [box_idx]]
+        new_offsets = [off for i, off in enumerate(new_offsets) if i not in wireboxes_idx + [box_idx]]
 
-        new_boxes = [box for i, box in enumerate(new_boxes) if i != box_idx]
-        new_offsets = [off for i, off in enumerate(new_offsets) if i != box_idx]
+        # new_boxes = [box for i, box in enumerate(new_boxes) if i != box_idx]
+        # new_offsets = [off for i, off in enumerate(new_offsets) if i != box_idx]
 
         return Diagram(diag.dom, diag.cod, new_boxes, new_offsets)
     return None
 
-def contract(diag):
+def contract(diag, brute_force=False):
     while True:
+        # remove all leaves 
         contracted_diag = _try_contract(diag)
         if contracted_diag is None:
-            return diag.flatten()
+            break
         diag = contracted_diag
+    return diag.flatten()
