@@ -5,7 +5,7 @@ def is_pregroup(self):
     Determine if a diagram is pregroup or not.
     """
     words_idx = [i for i, box in enumerate(self.boxes) if isinstance(box, Word)]
-    return words_idx[-1] == len(words_idx) - 1
+    return len(words_idx) == 0 or words_idx[-1] == len(words_idx) - 1
 
 def words_and_cups(self):
     """
@@ -13,9 +13,9 @@ def words_and_cups(self):
     and cups (and possibly swaps).
     """
     words_idx = [i for i, box in enumerate(self.boxes) if isinstance(box, Word)]
-    if words_idx[-1] != len(words_idx) - 1:
+    if len(self) > 0 and words_idx[-1] != len(words_idx) - 1:
         raise ValueError("The given diagram is not a pregroup diagram")
-    last_word_box_idx = words_idx[-1]
+    last_word_box_idx = words_idx[-1] if len(self) > 0 else -1
     return self[:last_word_box_idx+1], self[last_word_box_idx+1:]
 
 def tensor(self, other):
