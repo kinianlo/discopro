@@ -1,5 +1,12 @@
 from discopy import Diagram, Id, Ty, Cup, Cap, Swap, Word, Functor
+from lambeq.rewrite import SimpleRewriteRule
+from lambeq.core.types import AtomicType
 from discopy.monoidal import Swap as monoidal_Swap
+
+pronoun_rule = SimpleRewriteRule(
+        cod=AtomicType.NOUN >> AtomicType.NOUN,
+        template=Cap(AtomicType.NOUN.r, AtomicType.NOUN),
+        words=['he', 'she', 'it', 'they'])
 
 def follow_wire_up(diag, box_idx, wire_offset):
     """
