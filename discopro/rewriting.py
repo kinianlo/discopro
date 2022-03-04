@@ -218,7 +218,6 @@ def _try_contract_self_loop(diag):
             continue
 
         for self_ob_idx in self_to_self_ob_idx:
-            # print(paths_list[self_ob_idx])
             other_ob_idx = paths_list[self_ob_idx][-1]['end'][1] - diag.offsets[self_box_idx]
             if other_ob_idx - self_ob_idx == 1:
                 # this loop doesn't encircle anything else, proceed with this pair
@@ -305,7 +304,6 @@ def _try_contract_bending(diag):
 
         n_cups = sum(1 for box in diag.boxes if isinstance(box, Cup))
         new_n_cups = sum(1 for box in new_diag.boxes if isinstance(box, Cup))
-        print(n_cups, new_n_cups)
         if new_n_cups >= n_cups:
             continue
         return new_diag, True
