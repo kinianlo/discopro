@@ -324,8 +324,8 @@ def contract(diag, brute_force=False):
     while success:
         diag, success = _try_contract_leaf(diag)
 
-    # success = True
-    # while success:
-        # diag, success = _try_contract_bending(diag)
+    success = True
+    while success:
+        diag, success = _try_contract_bending(diag)
 
     return diag.flatten()
