@@ -1,4 +1,4 @@
-from discopy import Diagram, Id, Ty, Cup, Cap, Swap, Word
+from discopy import Diagram, Id, Ty, Cup, Cap, Swap, Word, Functor
 from discopy.monoidal import Swap as monoidal_Swap
 
 def follow_wire_up(diag, box_idx, wire_offset):
@@ -127,17 +127,17 @@ def _try_contract_new(diag):
 
 
 
-def _try_contract(diag):
+def _try_contract_leaf(diag):
     """
     Attempts to contract a box that is connected to only one 
     other box. If not such box is found, no contraction will be
     performed and None is returned.
     """
-    for box_idx, self in enumerate(diag.boxes):
+    for self_box_idx, self in enumerate(diag.boxes):
         if isinstance(self, Cup) or isinstance(self, Cap) or isinstance(self, monoidal_Swap):
             continue
 
-        paths_list = [follow_wire(diag, box_idx, diag.offsets[box_idx]+ob_idx) for ob_idx in range(len(self.cod))]
+        paths_list = [follow_wire(diag, self_box_idx, diag.offsets[self_box_idx]+ob_idx) for ob_idx in range(len(self.cod))]
 
         other_boxes_idx = [paths[-1]['end'][0] for paths in paths_list]
 
@@ -145,11 +145,12 @@ def _try_contract(diag):
             continue
         other_box_idx = other_boxes_idx[0]
 
-        if other_box_idx == len(diag): # self is connected to the boundary
+        if other_box_idx == len(diag): # self is connected to the bottom boundary
             continue
 
         other, other_offset = diag.boxes[other_box_idx], diag.offsets[other_box_idx]
 
+        # follow_wire should not terminate at a Cap, a Cup or a Swap
         assert not ( isinstance(other, Cup) or isinstance(other, Cap) or isinstance(other, monoidal_Swap) )
 
         # Up until now, we have confirmed that self is connect to another word box 
@@ -170,48 +171,157 @@ def _try_contract(diag):
 
         assert ob_z_diff % 2 == 1
 
-        right_obstruction = [i for paths in paths_list for path in paths for i in path['obstruction'][1]]
-
-        wireboxes_idx = [path['end'][0] for paths in paths_list for path in paths[:-1]]
-
         new_self = self
-        if ob_z_diff > 0:
-            for i in range(ob_z_diff):
-                new_self = new_self.r
-        elif ob_z_diff < 0:
-            for i in range(-ob_z_diff):
-                new_self = new_self.l
+        for i in range(abs(ob_z_diff)):
+            new_self = getattr(new_self, 'r' if ob_z_diff > 0 else 'l')
         new_self = new_self.dagger()
 
         perm = diag.permutation([i - min(other_ob_idx) for i in other_ob_idx[::-1]],
-                other.cod[min(other_ob_idx): max(other_ob_idx)+1])
+                                other.cod[min(other_ob_idx): max(other_ob_idx)+1])
         new_other = Diagram(other.dom, 
-                Ty(*[ob for i, ob in enumerate(other.cod) if i not in other_ob_idx]),
-                [other, perm, new_self],
-                [0, min(other_ob_idx), min(other_ob_idx)])
+                            Ty(*[ob for i, ob in enumerate(other.cod) if i not in other_ob_idx]),
+                            [other, perm, new_self],
+                            [0, min(other_ob_idx), min(other_ob_idx)])
 
         new_boxes = diag.boxes
         new_offsets = diag.offsets
+
+        new_boxes[other_box_idx] = new_other
         # adjust offsets for right obstruction
+        right_obstruction = [i for paths in paths_list for path in paths for i in path['obstruction'][1]]
         for i in right_obstruction:
             new_offsets[i] -= 1
 
-        new_boxes[other_box_idx] = new_other
+        # remove self box and the cups, caps and swaps in the paths
+        remove_boxes_idx = [path['end'][0] for paths in paths_list for path in paths[:-1]]
+        remove_boxes_idx.append(self_box_idx)
+        new_boxes = [box for i, box in enumerate(new_boxes) if i not in remove_boxes_idx]
+        new_offsets = [off for i, off in enumerate(new_offsets) if i not in remove_boxes_idx]
 
-        new_boxes = [box for i, box in enumerate(new_boxes) if i not in wireboxes_idx + [box_idx]]
-        new_offsets = [off for i, off in enumerate(new_offsets) if i not in wireboxes_idx + [box_idx]]
+        return Diagram(diag.dom, diag.cod, new_boxes, new_offsets), True
+    return diag, False
 
-        # new_boxes = [box for i, box in enumerate(new_boxes) if i != box_idx]
-        # new_offsets = [off for i, off in enumerate(new_offsets) if i != box_idx]
+def _try_contract_self_loop(diag):
+    """
+    Try to identify a self-loop and contract the loop.
+    """
+    for self_box_idx, self in enumerate(diag.boxes):
+        if isinstance(self, Cup) or isinstance(self, Cap):
+            continue
 
-        return Diagram(diag.dom, diag.cod, new_boxes, new_offsets)
-    return None
+        paths_list = [follow_wire(diag, self_box_idx, diag.offsets[self_box_idx]+ob_idx) for ob_idx in range(len(self.cod))]
+
+        other_boxes_idx = [paths[-1]['end'][0] for paths in paths_list]
+
+        self_to_self_ob_idx = [ob_idx for ob_idx, box_idx in enumerate(other_boxes_idx) if box_idx == self_box_idx]
+        if self_to_self_ob_idx == 0:
+            continue
+
+        for self_ob_idx in self_to_self_ob_idx:
+            # print(paths_list[self_ob_idx])
+            other_ob_idx = paths_list[self_ob_idx][-1]['end'][1] - diag.offsets[self_box_idx]
+            if other_ob_idx - self_ob_idx == 1:
+                # this loop doesn't encircle anything else, proceed with this pair
+                break
+        else:
+            continue
+
+        new_self = Diagram(self.dom,
+                           self.cod[:self_ob_idx] @ self.cod[other_ob_idx+1:],
+                           [self, Cup(Ty(self.cod[self_ob_idx]), Ty(self.cod[other_ob_idx]))],
+                           [0, self_ob_idx])
+
+        new_boxes = diag.boxes
+        new_offsets = diag.offsets
+
+        new_boxes[self_box_idx] = new_self
+        # adjust offsets for right obstruction
+        right_obstruction = [i for path in paths_list[self_ob_idx] for i in path['obstruction'][1]]
+        for i in right_obstruction:
+            new_offsets[i] -= 1
+
+        # remove self box and the cups, caps and swaps in the paths
+        remove_boxes_idx = [path['end'][0] for path in paths_list[self_ob_idx][:-1]]
+        new_boxes = [box for i, box in enumerate(new_boxes) if i not in remove_boxes_idx]
+        new_offsets = [off for i, off in enumerate(new_offsets) if i not in remove_boxes_idx]
+
+        return Diagram(diag.dom, diag.cod, new_boxes, new_offsets), True
+    return diag, False
+
+def _try_contract_bending(diag):
+    for self_box_idx, self in enumerate(diag.boxes):
+        if isinstance(self, Cup) or isinstance(self, Cap) or isinstance(self, monoidal_Swap):
+            continue
+
+        if len(self.cod) == 0:
+            continue
+
+        paths_list = [follow_wire(diag, self_box_idx, diag.offsets[self_box_idx]+ob_idx) for ob_idx in range(len(self.cod))]
+
+        other_boxes_idx = [paths[0]['end'][0] for paths in paths_list]
+
+        if not all(isinstance(diag.boxes[i] if i < len(diag) else None, Cup) for i in other_boxes_idx):
+            continue
+
+        cups_idx = other_boxes_idx 
+
+        cups_ob_idx = [paths_list[i][0]['end'][1] - diag.offsets[other_boxes_idx[i]] for i in range(len(self.cod))]
+        assert all(i == 0 or i == 1 for i in cups_ob_idx)
+
+        if not all(i == 0 or i == 1 for i in cups_ob_idx):
+            continue
+
+        if not len(set(cups_ob_idx)) == 1:
+            continue
+
+        right_bend = cups_ob_idx[0] == 0
+
+        if right_bend:
+            new_self = self.transpose(left=True).r.dagger()
+        else:
+            new_self = self.transpose(left=False).l.dagger()
+
+        # Starting to construct the new diagram
+        new_boxes = diag.boxes
+        new_offsets = diag.offsets
+
+        if right_bend:
+            new_boxes[self_box_idx] = self.r.dagger()
+        else:
+            new_boxes[self_box_idx] = self.l.dagger()
+
+        if not right_bend:
+            new_offsets[self_box_idx] += len(self.cod)
+
+        new_self.draw()
+        self_offset = diag.offsets[self_box_idx]
+        for i in range(len(self.cod)):
+            new_boxes.insert(self_box_idx + i, new_self.boxes[i])
+            new_offsets.insert(self_box_idx + i, self_offset + i)
+
+
+        new_diag = Diagram(diag.dom, diag.cod, new_boxes, new_offsets)
+        new_diag = new_diag.normal_form()
+
+        n_cups = sum(1 for box in diag.boxes if isinstance(box, Cup))
+        new_n_cups = sum(1 for box in new_diag.boxes if isinstance(box, Cup))
+        print(n_cups, new_n_cups)
+        if new_n_cups >= n_cups:
+            continue
+        return new_diag, True
+    return diag, False
 
 def contract(diag, brute_force=False):
-    while True:
-        # remove all leaves 
-        contracted_diag = _try_contract(diag)
-        if contracted_diag is None:
-            break
-        diag = contracted_diag
+    success = True
+    while success:
+        diag, success = _try_contract_self_loop(diag)
+
+    success = True
+    while success:
+        diag, success = _try_contract_leaf(diag)
+
+    # success = True
+    # while success:
+        # diag, success = _try_contract_bending(diag)
+
     return diag.flatten()
