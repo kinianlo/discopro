@@ -292,7 +292,6 @@ def _try_contract_bending(diag):
         if not right_bend:
             new_offsets[self_box_idx] += len(self.cod)
 
-        new_self.draw()
         self_offset = diag.offsets[self_box_idx]
         for i in range(len(self.cod)):
             new_boxes.insert(self_box_idx + i, new_self.boxes[i])
