@@ -68,12 +68,14 @@ def make_pred_fn(circuits, symbols, post_process=None, **kwargs):
         # Make sure we only pass pickleable things to the pool.starmap
         wanted_keys = ['backend_name', 'compilation_optim_level', 'n_shots', 'seed']
         clean_kwargs = {key: val for key, val in kwargs.items() if key in wanted_keys}
-        n_cpus = cpu_count()
-        batches = [measured_circuits[i:i+n_cpus] for i in range(0, len(measured_circuits), n_cpus)]
+        n_batches = cpu_count() - 1
+        batches = np.array_split(measured_circuits, n_batches)
+        n_circuits = len(measured_circuits)
         def predict_parallel(params):
             pool = Pool(cpu_count())
             outputs = pool.starmap(eval_circuit, [(batch, symbols, params, clean_kwargs) for batch in batches])
             outputs = [circ_eval for batch in outputs for circ_eval in batch]
+            assert len(outputs) == n_circuits
             if post_process:
                 outputs = [post_process(o, params) for o in outputs]
             assert all(np.array(o).shape == (2,) for o in outputs)
