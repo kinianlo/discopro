@@ -6,6 +6,7 @@ from lambeq.ansatz import Symbol
 from itertools import product
 from sympy import lambdify
 import numpy as np
+from tqdm.auto import tqdm
 
 def get_rng(seed):
     return np.random.default_rng(seed)
@@ -111,3 +112,68 @@ def make_cost_fn(pred_fn, labels):
     costs, accuracies = [], []
     return cost_fn, costs, accuracies
 
+def minimizeSPSA(func, x0, niter=100, start_from=0,
+                 a=1.0, alpha=0.602, c=1.0, gamma=0.101,
+                 callback=None, rng=None):
+    """
+    Minimization of an objective function by a simultaneous perturbation
+    stochastic approximation algorithm.
+    This algorithm approximates the gradient of the function by finite differences
+    along stochastic directions Deltak. The elements of Deltak are drawn from
+    +- 1 with probability one half. The gradient is approximated from the 
+    symmetric difference f(xk + ck*Deltak) - f(xk - ck*Deltak), where the evaluation
+    step size ck is scaled according ck =  c/(k+1)**gamma.
+    The algorithm takes a step of size ak = a/(0.01*niter+k+1)**alpha along the
+    negative gradient.
+    
+    See Spall, IEEE, 1998, 34, 817-823 for guidelines about how to choose the algorithm's
+    parameters (a, alpha, c, gamma).
+    Parameters
+    ----------
+    func: callable
+        objective function to be minimized:
+        called as `func(x, *args)`,
+        if `paired=True`, then called with keyword argument `seed` additionally
+    x0: array-like
+        initial guess for parameters 
+    niter: int
+        number of iterations after which to terminate the algorithm
+    a: float
+       scaling parameter for step size
+    alpha: float
+        scaling exponent for step size
+    c: float
+       scaling parameter for evaluation step size
+    gamma: float
+        scaling exponent for evaluation step size 
+    callback: callable
+        called after each iteration, as callback(xk), where xk are the current parameters
+    Returns
+    -------
+    x_hist, func_minus_hist, func_plus_hist, grad_hist
+    """
+    x_hist = []
+    func_plus_hist = []
+    func_minus_hist = []
+    grad_hist = []
+
+    A = 0.01 * niter
+    x, N = x0, len(x0)
+
+    for k in tqdm(range(start_from, niter)):
+        ak, ck = a/(k+1.0+A)**alpha, c/(k+1.0)**gamma
+
+        Deltak = rng.choice([-1, 1], size=N)
+        func_plus, func_minus = func(x + ck*Deltak), func(x - ck*Deltak)
+        grad = (func_plus - func_minus) / (2*ck*Deltak)
+
+        x_hist.append(x)
+        func_plus_hist.append(func_plus)
+        func_minus_hist.append(func_minus)
+        grad_hist.append(grad)
+
+        x -= ak*grad
+
+        if callback is not None:
+            callback(x)
+    return x, x_hist, func_plus_hist, func_minus_hist, grad_hist
