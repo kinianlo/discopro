@@ -12,7 +12,7 @@ from tqdm.auto import tqdm
 def get_rng(seed):
     return np.random.default_rng(seed)
 
-def eval_circuit(circ, symbols, params, options):
+def eval_circuit(circuits, symbols, params, options):
     """
     Return the evaluation result of
     an input circuit.
@@ -32,13 +32,13 @@ def eval_circuit(circ, symbols, params, options):
         backend = None
         compilation = None
 
-    circ_lam = circ.lambdify(*symbols)
+    circuits_lam = [c.lambdify(*symbols) for c in circuits]
 
-    return Circuit.eval(circ_lam(*params), 
+    return [Circuit.eval(circ_lam(*params), 
                         backend=backend, 
                         compilation=compilation, 
                         n_shots=n_shots,
-                        seed=seed)
+                        seed=seed) for circ_lam in circuits_lam]
 
 def get_sorted_symbols(circuits):
     """
@@ -68,9 +68,12 @@ def make_pred_fn(circuits, symbols, post_process=None, **kwargs):
         # Make sure we only pass pickleable things to the pool.starmap
         wanted_keys = ['backend_name', 'compilation_optim_level', 'n_shots', 'seed']
         clean_kwargs = {key: val for key, val in kwargs.items() if key in wanted_keys}
+        n_cpus = cpu_count()
+        batches = [measured_circuits[i:i+n_cpus] for i in range(0, len(measured_circuits), n_cpus)]
         def predict_parallel(params):
             pool = Pool(cpu_count())
-            outputs = pool.starmap(eval_circuit, [(c, symbols, params, clean_kwargs) for c in measured_circuits])
+            outputs = pool.starmap(eval_circuit, [(batch, symbols, params, clean_kwargs) for batch in batches])
+            outputs = [circ_eval for batch in outputs for circ_eval in batch]
             if post_process:
                 outputs = [post_process(o, params) for o in outputs]
             assert all(np.array(o).shape == (2,) for o in outputs)
