@@ -12,6 +12,9 @@ from tqdm.auto import tqdm
 def get_rng(seed):
     return np.random.default_rng(seed)
 
+_QulacsBackend = QulacsBackend()
+_AerBackend = AerBackend()
+
 def eval_circuit(circuits, symbols, params, options):
     """
     Return the evaluation result of
@@ -23,10 +26,10 @@ def eval_circuit(circuits, symbols, params, options):
     compilation_optim_level = options.get('compilation_optim_level', 1)
 
     if backend_name == 'qulacs':
-        backend = QulacsBackend()
+        backend = _QulacsBackend
         compilation = backend.default_compilation_pass(compilation_optim_level)
     elif backend_name == 'aer':
-        backend = AerBackend()
+        backend = _AerBackend
         compilation = backend.default_compilation_pass(compilation_optim_level)
     else:
         backend = None
@@ -68,12 +71,12 @@ def make_pred_fn(circuits, symbols, post_process=None, **kwargs):
         # Make sure we only pass pickleable things to the pool.starmap
         wanted_keys = ['backend_name', 'compilation_optim_level', 'n_shots', 'seed']
         clean_kwargs = {key: val for key, val in kwargs.items() if key in wanted_keys}
-        n_batches = cpu_count() - 1
+        n_batches = cpu_count()
         batches = np.array_split(measured_circuits, n_batches)
         n_circuits = len(measured_circuits)
         def predict_parallel(params):
-            pool = Pool(cpu_count())
-            outputs = pool.starmap(eval_circuit, [(batch, symbols, params, clean_kwargs) for batch in batches])
+            with Pool(n_batches) as pool:
+                outputs = pool.starmap(eval_circuit, [(batch, symbols, params, clean_kwargs) for batch in batches])
             outputs = [circ_eval for batch in outputs for circ_eval in batch]
             assert len(outputs) == n_circuits
             if post_process:
