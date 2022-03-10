@@ -1,8 +1,8 @@
 from discopy import Circuit, Id, Measure 
 from sympy import default_sort_key
-from multiprocessing import Pool, cpu_count
-from pytket.extensions.qulacs import QulacsBackend
-from pytket.extensions.qiskit import AerBackend
+from multiprocessing import cpu_count
+from pytket.extensions.qulacs.backends.qulacs_backend import QulacsBackend
+from pytket.extensions.qiskit.backends.aer import AerBackend
 from lambeq.ansatz import Symbol
 from itertools import product
 from sympy import lambdify
@@ -64,10 +64,10 @@ def get_reduction_tensor(name, n_inputs):
     return tensor, symbols
 
 def make_pred_fn(circuits, symbols, post_process=None, **kwargs):
-    parallel_eval = kwargs.get('parallel_eval', False)
+    pool = kwargs.get('pool', None)
 
     measured_circuits = [c >> Id().tensor(*[Measure()] * len(c.cod)) for c in circuits]
-    if parallel_eval:
+    if pool:
         # Make sure we only pass pickleable things to the pool.starmap
         wanted_keys = ['backend_name', 'compilation_optim_level', 'n_shots', 'seed']
         clean_kwargs = {key: val for key, val in kwargs.items() if key in wanted_keys}
@@ -75,8 +75,7 @@ def make_pred_fn(circuits, symbols, post_process=None, **kwargs):
         batches = np.array_split(measured_circuits, n_batches)
         n_circuits = len(measured_circuits)
         def predict_parallel(params):
-            with Pool(n_batches) as pool:
-                outputs = pool.starmap(eval_circuit, [(batch, symbols, params, clean_kwargs) for batch in batches])
+            outputs = pool.starmap(eval_circuit, [(batch, symbols, params, clean_kwargs) for batch in batches])
             outputs = [circ_eval for batch in outputs for circ_eval in batch]
             assert len(outputs) == n_circuits
             if post_process:
