@@ -2,6 +2,7 @@ from discopy import Circuit, Id, Measure
 from sympy import default_sort_key
 from multiprocessing import Pool, cpu_count
 from pytket.extensions.qulacs import QulacsBackend
+from pytket.extensions.qiskit import AerBackend
 from lambeq.ansatz import Symbol
 from itertools import product
 from sympy import lambdify
@@ -11,17 +12,33 @@ from tqdm.auto import tqdm
 def get_rng(seed):
     return np.random.default_rng(seed)
 
-def eval_circuit(circ, params, n_shots=1, seed=0, backend=QulacsBackend, compilation=None):
+def eval_circuit(circ, symbols, params, options):
     """
     Return the evaluation result of
     an input circuit.
     """
-    if compilation is None:
-        compilation = backend.default_compilation_pass(2)
-    return Circuit.eval(circ(*params), 
+    n_shots = options.get('n_shots', 1)
+    seed = options.get('seed', 0)
+    backend_name = options.get('backend_name', None)
+    compilation_optim_level = options.get('compilation_optim_level', 1)
+
+    if backend_name == 'qulacs':
+        backend = QulacsBackend()
+        compilation = backend.default_compilation_pass(compilation_optim_level)
+    elif backend_name == 'aer':
+        backend = AerBackend()
+        compilation = backend.default_compilation_pass(compilation_optim_level)
+    else:
+        backend = None
+        compilation = None
+
+    circ_lam = circ.lambdify(*symbols)
+
+    return Circuit.eval(circ_lam(*params), 
                         backend=backend, 
                         compilation=compilation, 
-                        n_shots=n_shots)
+                        n_shots=n_shots,
+                        seed=seed)
 
 def get_sorted_symbols(circuits):
     """
@@ -41,39 +58,35 @@ def get_reduction_tensor(name, n_inputs):
     symbols = [Symbol(f"{name}_{''.join(str(t))}") for t in product([0, 1], repeat=n_inputs+1)]
     tensor = np.array(symbols, dtype=Symbol)
     tensor = tensor.reshape([2] * (n_inputs + 1))
-    return tensor
+    return tensor, symbols
 
 def make_pred_fn(circuits, symbols, post_process=None, **kwargs):
-    backend = kwargs.get('backend', None)
-    compilation = kwargs.get('compilation', None)
-    n_shots = kwargs.get('n_shots', 1)
-    seed = kwargs.get('seed', 0)
-    parallel_eval = kwargs.get('parallel_eval', True)
-    
-    measured_circuits = [c >> Id().tensor(*[Measure()] * len(c.cod)) for c in circuits]
-    circuit_fns = [c.lambdify(*symbols) for c in measured_circuits]   
+    parallel_eval = kwargs.get('parallel_eval', False)
 
+    measured_circuits = [c >> Id().tensor(*[Measure()] * len(c.cod)) for c in circuits]
     if parallel_eval:
-        def predict(params):
+        # Make sure we only pass pickleable things to the pool.starmap
+        wanted_keys = ['backend_name', 'compilation_optim_level', 'n_shots', 'seed']
+        clean_kwargs = {key: val for key, val in kwargs.items() if key in wanted_keys}
+        def predict_parallel(params):
             pool = Pool(cpu_count())
-            outputs = pool.map(eval_circuit, [(c, params, n_shots, seed) for c in circuit_fns])
+            outputs = pool.starmap(eval_circuit, [(c, symbols, params, clean_kwargs) for c in measured_circuits])
             if post_process:
-                outputs = list(map(post_process, outputs))
                 outputs = [post_process(o, params) for o in outputs]
             assert all(np.array(o).shape == (2,) for o in outputs)
             assert all(abs(sum(o) - 1) < 1e-6 for o in outputs)
             return np.array(outputs)
+        return predict_parallel
     else:
+        circuit_fns = [c.lambdify(*symbols) for c in measured_circuits]   
         def predict(params):
             outputs = Circuit.eval(*(c_fn(*params) for c_fn in circuit_fns), **kwargs)
             if post_process:
-                outputs = list(map(post_process, outputs))
                 outputs = [post_process(o, params) for o in outputs]
             assert all(np.array(o).shape == (2,) for o in outputs)
             assert all(abs(sum(o) - 1) < 1e-6 for o in outputs)
             return np.array(outputs)
-
-    return predict
+        return predict
 
 def softmax(x):
     """Compute softmax values for each sets of scores in x."""
@@ -90,7 +103,7 @@ def make_default_post_process(reduction_tensor, symbols):
             output += 1e-9
             output = output / output.sum()
         elif output.shape == (2, 2):
-            output = np.einsum('pij,ij->p', tensor_fn(params), output)
+            output = np.einsum('pij,ij->p', tensor_fn(*params), output)
             output = softmax(output)
         else:
             raise NotImplementedError("Diagrams with more than 2 sentence outputs are not supported yet")
@@ -98,6 +111,7 @@ def make_default_post_process(reduction_tensor, symbols):
     return post_process
 
 def make_cost_fn(pred_fn, labels):
+    labels = np.array(labels)
     def cost_fn(params, **kwargs):
         predictions = pred_fn(params)
 
@@ -152,6 +166,9 @@ def minimizeSPSA(func, x0, niter=100, start_from=0,
     -------
     x_hist, func_minus_hist, func_plus_hist, grad_hist
     """
+    if rng is None:
+        rng = np.random.default_rng(0)
+
     x_hist = []
     func_plus_hist = []
     func_minus_hist = []
@@ -176,4 +193,4 @@ def minimizeSPSA(func, x0, niter=100, start_from=0,
 
         if callback is not None:
             callback(x)
-    return x, x_hist, func_plus_hist, func_minus_hist, grad_hist
+    return x, (x_hist, func_plus_hist, func_minus_hist, grad_hist)
