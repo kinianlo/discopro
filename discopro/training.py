@@ -7,6 +7,7 @@ from lambeq.ansatz import Symbol
 from itertools import product
 from sympy import lambdify
 import numpy as np
+from numpy.random import default_rng
 from tqdm.auto import tqdm
 
 def get_rng(seed):
@@ -123,19 +124,15 @@ def make_cost_fn(pred_fn, labels):
         predictions = pred_fn(params)
 
         cost = -np.sum(labels * np.log(predictions)) / len(labels)  # binary cross-entropy loss
-        costs.append(cost)
 
         acc = np.sum(np.round(predictions) == labels) / len(labels) / 2  # half due to double-counting
-        accuracies.append(acc)
 
-        return cost
-
-    costs, accuracies = [], []
-    return cost_fn, costs, accuracies
+        return cost, acc
+    return cost_fn
 
 def minimizeSPSA(func, x0, niter=100, start_from=0,
                  a=1.0, alpha=0.602, c=1.0, gamma=0.101,
-                 callback=None, rng=None):
+                 func_dev=None, rng=None):
     """
     Minimization of an objective function by a simultaneous perturbation
     stochastic approximation algorithm.
@@ -174,12 +171,19 @@ def minimizeSPSA(func, x0, niter=100, start_from=0,
     x_hist, func_minus_hist, func_plus_hist, grad_hist
     """
     if rng is None:
-        rng = np.random.default_rng(0)
+        rng = default_rng(0)
 
-    x_hist = []
-    func_plus_hist = []
-    func_minus_hist = []
-    grad_hist = []
+    history = dict()
+    history['params'] = list()
+    history['cost_plus'] = list()
+    history['cost_minus'] = list()
+    history['acc_plus'] = list()
+    history['acc_minus'] = list()
+    history['grad'] = list()
+
+    if func_dev:
+        history['cost_dev'] = list()
+        history['acc_dev'] = list()
 
     A = 0.01 * niter
     x, N = x0, len(x0)
@@ -188,16 +192,40 @@ def minimizeSPSA(func, x0, niter=100, start_from=0,
         ak, ck = a/(k+1.0+A)**alpha, c/(k+1.0)**gamma
 
         Deltak = rng.choice([-1, 1], size=N)
-        func_plus, func_minus = func(x + ck*Deltak), func(x - ck*Deltak)
-        grad = (func_plus - func_minus) / (2*ck*Deltak)
+        cost_plus, acc_plus = func(x + ck*Deltak)
+        cost_minus, acc_minus = func(x - ck*Deltak)
+        grad = (cost_plus - cost_minus) / (2*ck*Deltak)
 
-        x_hist.append(x)
-        func_plus_hist.append(func_plus)
-        func_minus_hist.append(func_minus)
-        grad_hist.append(grad)
+        history['params'].append(x)
+        history['cost_plus'].append(cost_plus)
+        history['cost_minus'].append(cost_minus)
+        history['acc_plus'].append(acc_plus)
+        history['acc_minus'].append(acc_minus)
+        history['grad'].append(grad)
 
         x -= ak*grad
 
-        if callback is not None:
-            callback(x)
-    return x, (x_hist, func_plus_hist, func_minus_hist, grad_hist)
+        if func_dev:
+            cost_dev, acc_dev = func_dev(x)
+            history['cost_dev'].append(cost_dev)
+            history['acc_dev'].append(acc_dev)
+    return x, history
+
+def plot_train_history(history):
+    import matplotlib.pyplot as plt
+
+    fig, ((ax_tl, ax_tr), (ax_bl, ax_br)) = plt.subplots(2, 2, sharex=True, sharey='row', figsize=(10, 6))
+    ax_tl.set_title('Training set')
+    ax_tr.set_title('Development set')
+    ax_bl.set_xlabel('Iterations')
+    ax_br.set_xlabel('Iterations')
+    ax_bl.set_ylabel('Accuracy')
+    ax_tl.set_ylabel('Loss')
+
+    colours = iter(plt.rcParams['axes.prop_cycle'].by_key()['color'])
+    ax_tl.plot(history['cost_plus'], color=next(colours))  # training evaluates twice per iteration
+    ax_bl.plot(history['acc_plus'], color=next(colours))   # so take every other entry
+    ax_tr.plot(history['cost_dev'], color=next(colours))
+    ax_br.plot(history['acc_dev'], color=next(colours))
+
+    fig.show()
