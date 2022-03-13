@@ -39,4 +39,4 @@ def tensor(self, *others):
     elif len(others) == 1:
         return _tensor(self, others[0])
     else:
-        return _tensor(self, _tensor(others[0], *others[1:]))
+        return _tensor(self, tensor(others[0], *others[1:]))
