@@ -18,7 +18,7 @@ def words_and_cups(self):
     last_word_box_idx = words_idx[-1] if len(self) > 0 else -1
     return self[:last_word_box_idx+1], self[last_word_box_idx+1:]
 
-def tensor(self, other):
+def _tensor(self, other):
     """
     Return the tensor product of two pregroup diagrams.
     """
@@ -30,3 +30,11 @@ def tensor(self, other):
     f1, g1 = words_and_cups(other)
     return f0 @ f1 >> g0 @ g1
 
+def tensor(self, *others):
+    """
+    Return the tensor product of pregroup diagrams.
+    """
+    if len(others) == 1:
+        return _tensor(self, others[0])
+    else:
+        return _tensor(self, _tensor(others[0], *others[1:]))
