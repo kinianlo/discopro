@@ -34,7 +34,9 @@ def tensor(self, *others):
     """
     Return the tensor product of pregroup diagrams.
     """
-    if len(others) == 1:
+    if len(others) == 0:
+        return self
+    elif len(others) == 1:
         return _tensor(self, others[0])
     else:
         return _tensor(self, _tensor(others[0], *others[1:]))
