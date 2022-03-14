@@ -1,4 +1,4 @@
-from discopy import Circuit, Id, Measure 
+from discopy import Circuit, Id, Measure, Tensor, Dim
 from sympy import default_sort_key
 from multiprocessing import cpu_count
 from pytket.extensions.qulacs.backends.qulacs_backend import QulacsBackend
@@ -9,6 +9,7 @@ from sympy import lambdify
 import numpy as np
 from numpy.random import default_rng
 from tqdm.auto import tqdm
+from functools import reduce
 
 def get_rng(seed):
     return np.random.default_rng(seed)
@@ -58,12 +59,6 @@ def get_sorted_symbols(circuits):
 def random_params(symbols, rng):
     return rng.random(len(symbols))
 
-def get_reduction_tensor(name, n_inputs):
-    symbols = [Symbol(f"{name}_{''.join(str(t))}") for t in product([0, 1], repeat=n_inputs+1)]
-    tensor = np.array(symbols, dtype=Symbol)
-    tensor = tensor.reshape([2] * (n_inputs + 1))
-    return tensor, symbols
-
 def make_pred_fn(circuits, symbols, post_process=None, **kwargs):
     pool = kwargs.get('pool', None)
 
@@ -101,25 +96,53 @@ def softmax(x):
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum()
 
+def get_reduction_tensor(name, n_outputs, absolute=True):
+    symbols = [Symbol(f"{name}_{''.join([str(i) for i in t])}") for t in product([0, 1], repeat=n_outputs+1)]
+    # array = np.array(symbols)
+    # if absolute:
+        # array = np.abs(array)
+    # tensor = Tensor(Dim(1), Dim(2) ** n_outputs, array)
+    tensor = np.array(symbols, dtype=Symbol)
+    tensor = tensor.reshape([2] * (n_outputs + 1))
+    if absolute:
+        tensor = np.abs(tensor)
+    return tensor, set(symbols)
+
 def make_default_post_process(reduction_tensor, symbols):
+    assert all(d == 2 for d in reduction_tensor.shape)
     tensor = reduction_tensor
     tensor_fn = lambdify(symbols, tensor)
+    max_n_outputs = len(tensor.shape) - 1
 
     def post_process(output, params):
-        output = np.array(output.array)
-        if output.shape == (2,):
-            output += 1e-9
-            output = output / output.sum()
-        elif output.shape == (2, 2):
-            output = np.einsum('pij,ij->p', tensor_fn(*params), output)
-            output = softmax(output)
-        else:
-            raise NotImplementedError("Diagrams with more than 2 sentence outputs are not supported yet")
-        return output
+        # normalise output
+        array = np.array(output.array)
+        array += 1e-9
+        array /= array.sum()
+
+        n_outputs = len(array.shape)
+        if len(array.shape) > max_n_outputs:
+            raise ValueError(f"Reduction tensor supports no more than {max_n_outputs} outputs.")
+
+        one = np.array([0, 1])
+        td = lambda x, y: np.tensordot(x, y, axes=0)
+        array = reduce(td, [array] + [one]*(max_n_outputs-n_outputs))
+
+        pred = np.tensordot(tensor_fn(*params), array, axes=max_n_outputs)
+        pred += 1e-9
+        pred /= pred.sum()
+        # if output.shape == (2,):
+            # pass
+        # elif output.shape == (2, 2):
+            # output = np.einsum('pij,ij->p', tensor_fn(*params), output)
+            # output = softmax(output)
+        # else:
+            # raise NotImplementedError("Diagrams with more than 2 sentence outputs are not supported yet")
+        return pred
     return post_process
 
 def make_cost_fn(pred_fn, labels):
-    labels = np.array(labels)
+    labels = np.array([np.array(l) for l in labels])
     def cost_fn(params, **kwargs):
         predictions = pred_fn(params)
 
@@ -186,17 +209,19 @@ def minimizeSPSA(func, x0, niter=100, start_from=0,
         history['acc_dev'] = list()
 
     A = 0.01 * niter
-    x, N = x0, len(x0)
+    x = x0
+    N = len(x0)
 
     for k in tqdm(range(start_from, niter)):
-        ak, ck = a/(k+1.0+A)**alpha, c/(k+1.0)**gamma
+        ak = a/(k+1.0+A)**alpha
+        ck = c/(k+1.0)**gamma
 
         Deltak = rng.choice([-1, 1], size=N)
         cost_plus, acc_plus = func(x + ck*Deltak)
         cost_minus, acc_minus = func(x - ck*Deltak)
         grad = (cost_plus - cost_minus) / (2*ck*Deltak)
 
-        history['params'].append(x)
+        history['params'].append(x.copy())
         history['cost_plus'].append(cost_plus)
         history['cost_minus'].append(cost_minus)
         history['acc_plus'].append(acc_plus)
@@ -209,12 +234,17 @@ def minimizeSPSA(func, x0, niter=100, start_from=0,
             cost_dev, acc_dev = func_dev(x)
             history['cost_dev'].append(cost_dev)
             history['acc_dev'].append(acc_dev)
+
     return x, history
 
 def plot_train_history(history):
     import matplotlib.pyplot as plt
+    hist = history.copy()
+    n_iter = len(hist['params'])
+    hist['cost_mean'] = np.mean([hist['cost_plus'], hist['cost_minus']], axis=0)
+    hist['acc_mean'] = np.mean([hist['acc_plus'], hist['acc_minus']], axis=0)
 
-    fig, ((ax_tl, ax_tr), (ax_bl, ax_br)) = plt.subplots(2, 2, sharex=True, sharey='row', figsize=(10, 6))
+    fig, ((ax_tl, ax_tr), (ax_bl, ax_br)) = plt.subplots(2, 2, sharex=True, sharey='row', figsize=(16, 8))
     ax_tl.set_title('Training set')
     ax_tr.set_title('Development set')
     ax_bl.set_xlabel('Iterations')
@@ -222,10 +252,25 @@ def plot_train_history(history):
     ax_bl.set_ylabel('Accuracy')
     ax_tl.set_ylabel('Loss')
 
+    ax_tl.grid()
+    ax_tr.grid()
+    ax_bl.grid()
+    ax_br.grid()
+
+    ax_tl.set_xlim(0, n_iter-1)
+
+    ax_bl.set_ylim(0, 1)
+
     colours = iter(plt.rcParams['axes.prop_cycle'].by_key()['color'])
-    ax_tl.plot(history['cost_plus'], color=next(colours))  # training evaluates twice per iteration
-    ax_bl.plot(history['acc_plus'], color=next(colours))   # so take every other entry
-    ax_tr.plot(history['cost_dev'], color=next(colours))
-    ax_br.plot(history['acc_dev'], color=next(colours))
+    c = next(colours)
+    ax_tl.fill_between(range(n_iter), hist['cost_plus'], hist['cost_minus'], color=c, alpha=0.5)
+    ax_tl.plot(hist['cost_mean'], color=c)
+
+    c = next(colours)
+    ax_bl.fill_between(range(n_iter), hist['acc_plus'], hist['acc_minus'], color=c, alpha=0.5)
+    ax_bl.plot(hist['acc_mean'], color=c)
+
+    ax_tr.plot(hist['cost_dev'], color=next(colours))
+    ax_br.plot(hist['acc_dev'], color=next(colours))
 
     fig.show()
