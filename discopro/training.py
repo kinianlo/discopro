@@ -108,38 +108,37 @@ def get_reduction_tensor(name, n_outputs, absolute=True):
         tensor = np.abs(tensor)
     return tensor, set(symbols)
 
-def make_default_post_process(reduction_tensor, symbols):
-    assert all(d == 2 for d in reduction_tensor.shape)
-    tensor = reduction_tensor
-    tensor_fn = lambdify(symbols, tensor)
-    max_n_outputs = len(tensor.shape) - 1
+def make_default_post_process(reduction_tensor=None, symbols=None):
+    if not reduction_tensor and not symbols:
+        def post_process(output, params):
+            array = np.array(output.array)
+            array += 1e-9
+            array /= array.sum()
+            return array
+        return post_process
+    else:
+        assert all(d == 2 for d in reduction_tensor.shape)
+        tensor = reduction_tensor
+        tensor_fn = lambdify(symbols, tensor)
+        max_n_outputs = len(tensor.shape) - 1
 
-    def post_process(output, params):
-        # normalise output
-        array = np.array(output.array)
-        array += 1e-9
-        array /= array.sum()
+        def post_process(output, params):
+            # normalise output
+            array = np.array(output.array)
 
-        n_outputs = len(array.shape)
-        if len(array.shape) > max_n_outputs:
-            raise ValueError(f"Reduction tensor supports no more than {max_n_outputs} outputs.")
+            n_outputs = len(array.shape)
+            if len(array.shape) > max_n_outputs:
+                raise ValueError(f"Reduction tensor supports no more than {max_n_outputs} outputs.")
 
-        one = np.array([0, 1])
-        td = lambda x, y: np.tensordot(x, y, axes=0)
-        array = reduce(td, [array] + [one]*(max_n_outputs-n_outputs))
+            one = np.array([0, 1])
+            td = lambda x, y: np.tensordot(x, y, axes=0)
+            array = reduce(td, [array] + [one]*(max_n_outputs-n_outputs))
 
-        pred = np.tensordot(tensor_fn(*params), array, axes=max_n_outputs)
-        pred += 1e-9
-        pred /= pred.sum()
-        # if output.shape == (2,):
-            # pass
-        # elif output.shape == (2, 2):
-            # output = np.einsum('pij,ij->p', tensor_fn(*params), output)
-            # output = softmax(output)
-        # else:
-            # raise NotImplementedError("Diagrams with more than 2 sentence outputs are not supported yet")
-        return pred
-    return post_process
+            pred = np.tensordot(tensor_fn(*params), array, axes=max_n_outputs)
+            pred += 1e-9
+            pred /= pred.sum()
+            return pred
+        return post_process
 
 def make_cost_fn(pred_fn, labels):
     labels = np.array([np.array(l) for l in labels])
