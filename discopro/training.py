@@ -236,7 +236,7 @@ def minimizeSPSA(func, x0, niter=100, start_from=0,
 
     return x, history
 
-def plot_train_history(history, path=None):
+def plot_train_history(history, path=None, acc_test):
     import matplotlib.pyplot as plt
     hist = history.copy()
     n_iter = len(hist['params'])
@@ -272,7 +272,8 @@ def plot_train_history(history, path=None):
     ax_tr.plot(hist['cost_dev'], color=next(colours))
     ax_br.plot(hist['acc_dev'], color=next(colours))
 
-    fig.suptitle(f"Test accuracy: {hist['acc_test']}")
+    if acc_test:
+        fig.suptitle(f"Test accuracy: {acc_test}")
 
     if path:
         fig.savefig(path, dpi=200)
