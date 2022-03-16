@@ -272,6 +272,8 @@ def plot_train_history(history, path=None):
     ax_tr.plot(hist['cost_dev'], color=next(colours))
     ax_br.plot(hist['acc_dev'], color=next(colours))
 
+    fig.suptitle(f"Test accuracy: {hist['acc_test']}")
+
     if path:
         fig.savefig(path, dpi=200)
     else:
