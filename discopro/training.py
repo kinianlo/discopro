@@ -236,7 +236,7 @@ def minimizeSPSA(func, x0, niter=100, start_from=0,
 
     return x, history
 
-def plot_train_history(history, path=None, acc_test):
+def plot_train_history(history, path=None, acc_test=None):
     import matplotlib.pyplot as plt
     hist = history.copy()
     n_iter = len(hist['params'])
