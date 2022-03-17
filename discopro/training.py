@@ -3,6 +3,7 @@ from sympy import default_sort_key
 from multiprocessing import cpu_count
 from pytket.extensions.qulacs.backends.qulacs_backend import QulacsBackend
 from pytket.extensions.qiskit.backends.aer import AerBackend
+from pytket.extensions.qiskit.qiskit_convert import tk_to_qiskit
 from lambeq.ansatz import Symbol
 from itertools import product
 from sympy import lambdify
@@ -10,6 +11,8 @@ import numpy as np
 from numpy.random import default_rng
 from tqdm.auto import tqdm
 from functools import reduce
+from qiskit import transpile, Aer
+from discopro.backend import eval_fast
 
 def get_rng(seed):
     return np.random.default_rng(seed)
@@ -91,6 +94,33 @@ def make_pred_fn(circuits, symbols, post_process=None, **kwargs):
             return np.array(outputs)
         return predict
 
+def make_pred_fn_fast(circuits, symbols, post_process, **kwargs):
+    backend = kwargs.get('backend', Aer.get_backend('aer_simulator'))
+    n_shots = kwargs.get('n_shots', 2**13)
+    seed = kwargs.get('seed', None)
+    optim_level = kwargs.get('compilation_optim_level', 1)
+    pool = kwargs.get('pool', None)
+
+    # Make sure circuit simulation is run in parallel
+    backend.set_options(max_parallel_shots=1, max_parallel_experiments=0)
+
+    measured_circuits = [c >> Id().tensor(*[Measure()] * len(c.cod)) for c in circuits]
+    circuits_tk = [c.to_tk() for c in measured_circuits]
+    post_selections = [c.post_selection for c in circuits_tk]
+    circuits_qiskit = [transpile(tk_to_qiskit(c), 
+                        backend, 
+                        optimization_level=optim_level,
+                        seed_transpiler=seed) 
+                        for c in circuits_tk]
+
+    def predict(params):
+        outputs = eval_fast(circuits_qiskit, post_selections, n_shots, symbols, params, backend=backend, seed=seed)
+        outputs = [post_process(o, params) for o in outputs]
+        assert all(np.array(o).shape == (2,) for o in outputs)
+        assert all(abs(sum(o) - 1) < 1e-6 for o in outputs)
+        return np.array(outputs)
+    return predict
+
 def softmax(x):
     """Compute softmax values for each sets of scores in x."""
     e_x = np.exp(x - np.max(x))
@@ -111,7 +141,10 @@ def get_reduction_tensor(name, n_outputs, absolute=True):
 def make_default_post_process(reduction_tensor=None, symbols=None):
     if not reduction_tensor and not symbols:
         def post_process(output, params):
-            array = np.array(output.array)
+            if isinstance(output, Tensor):
+                array = np.array(output.array)
+            else:
+                array = output
             array += 1e-9
             array /= array.sum()
             return array
@@ -123,8 +156,10 @@ def make_default_post_process(reduction_tensor=None, symbols=None):
         max_n_outputs = len(tensor.shape) - 1
 
         def post_process(output, params):
-            # normalise output
-            array = np.array(output.array)
+            if isinstance(output, Tensor):
+                array = np.array(output.array)
+            else:
+                array = output
 
             n_outputs = len(array.shape)
             if len(array.shape) > max_n_outputs:
