@@ -1,4 +1,4 @@
-from discopy import Word, Diagram, Id, Ty, Cup, Cap, Swap
+from discopy import Word, Diagram, Id, Ty, Cup, Cap
 from discopro.grammar import words_and_cups, is_pregroup
 
 def _surround_cup(diag, cup):
@@ -23,10 +23,16 @@ def _insert_cup(diag, left, right, cup):
     swaps = diag.swap(cup.dom[0:1], diag.dom[left:right+1])
     new_dom = diag.dom[:left] @ cup.dom[0:1] @ diag.dom[left:right+1] @ cup.dom[1:2] @ diag.dom[right+1:]
 
-    new_diag = Diagram(new_dom, diag.cod,
-                    [swaps, cup, diag],
-                    [left, right+1, 0])
-    return new_diag.flatten()
+    # new_diag = Diagram(new_dom, diag.cod,
+                    # [swaps, cup, diag],
+                    # [left, right+1, 0])
+    # return new_diag.flatten()
+
+    new_diag = Id(diag.dom[:left]) @ swaps @ Id(diag.dom[right+1:])
+    new_diag >>= Id(diag.dom[:right+1]) @ cup @ Id(diag.dom[right+1:])
+    new_diag >>= diag
+    return new_diag
+
 
 def _insert_cup_min_swaps(diag, left, right, cup):
     """
