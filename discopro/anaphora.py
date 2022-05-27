@@ -8,11 +8,9 @@ def _surround_cup(diag, cup):
     """
     ids = Diagram(diag.cod, diag.cod, [], [])
     cups = _insert_cup(ids, 0, len(diag.cod) - 1, cup)
-    new_diag = Diagram(cup.dom[0:1] @ diag.dom @ cup.dom[1:2],
-                        diag.cod,
-                        [diag, cups],
-                        [1, 0])
-    return new_diag.flatten()
+    new_diag = Id(cup.dom[:1]) @ diag @ Id(cup.dom[1:])
+    new_diag >>= cups
+    return new_diag
 
 def _insert_cup(diag, left, right, cup):
     """
@@ -21,14 +19,7 @@ def _insert_cup(diag, left, right, cup):
     between [right, right+1].
     """
     swaps = diag.swap(cup.dom[0:1], diag.dom[left:right+1])
-    new_dom = diag.dom[:left] @ cup.dom[0:1] @ diag.dom[left:right+1] @ cup.dom[1:2] @ diag.dom[right+1:]
-
-    # new_diag = Diagram(new_dom, diag.cod,
-                    # [swaps, cup, diag],
-                    # [left, right+1, 0])
-    # return new_diag.flatten()
-
-    new_diag = Id(diag.dom[:left]) @ swaps @ Id(diag.dom[right+1:])
+    new_diag = Id(diag.dom[:left]) @ swaps @ Id(cup.dom[1:] @ diag.dom[right+1:])
     new_diag >>= Id(diag.dom[:right+1]) @ cup @ Id(diag.dom[right+1:])
     new_diag >>= diag
     return new_diag
