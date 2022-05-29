@@ -1,5 +1,0 @@
-label,sentence,pronoun,referent
-1,The fish ate the bread. It was hungry.,it,fish
-0,The dog ate the worm. It was tasty.,it,worm
-1,The sink is clogged with hair. It has to be cleaned.,it,sink
-0,The drain is clogged with dirt. It has to be removed.,it,dirt
