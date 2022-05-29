@@ -4,7 +4,7 @@ A package to support running QNLP experiments involving anaphora. This package i
 ### Installation
 #### Method 1
 ```
-pip install git+https://github.com/kinianlo/discopro.git
+pip install git+https://github.com/kinianlo/discopro.git --upgrade
 ```
 
 #### Method 2
@@ -44,7 +44,9 @@ diagram = bob @ likes @ alice @ he @ was @ happy
 diagram >>= Cup(N, N.r) @ Id(S) @ Cup(N.l, N) @ Cup(N, N.r) @ Id(S) @ diagram.cups(S.l @ N, N.r @ S)
 draw(diagram)
 ```
-![image](https://user-images.githubusercontent.com/3414912/156348380-a2ef4682-0d48-47a5-8de8-b31681d33e78.png)
+![9eed51d2-d86c-42b2-aa82-63ade877ab2d](https://user-images.githubusercontent.com/3414912/170871052-72b528dd-bfb8-4466-8f62-74edbb74ef4a.png)
+
+
 
 One of the main usage of `discopro` is to connect the pronoun (He) and the referent (John) with a `Cup(N, N.r)`:
 ```
@@ -54,12 +56,15 @@ ref_box_idx, pro_box_idx = 0, 3
 diagram_connected = connect_anaphora(diagram, pro_box_idx, ref_box_idx)
 draw(diagram_connected)
 ```
-![image](https://user-images.githubusercontent.com/3414912/156349015-47911290-4c28-485b-b4bb-9674d5a8fc37.png)
-Note that some of the swaps introduced are unnecessary. One can use the `min_swaps` option to the `connect_anaphora` function to prevent unnecessary swaps.
+![b278be70-5822-4469-81bf-bb4f5a232c6b](https://user-images.githubusercontent.com/3414912/170871087-25f03829-6e3e-4d86-a180-93be6e4102fe.png)
+
+
+Note that some of the swaps introduced are unnecessary. One can use the `min_swaps` option in the `connect_anaphora` function to prevent unnecessary swaps.
 ```
 diagram_connected = connect_anaphora(diagram, pro_box_idx, ref_box_idx, min_swaps=True)
 draw(diagram_connected)
 ```
+![7bba73ec-4c15-40dd-a647-54dbed0932b7](https://user-images.githubusercontent.com/3414912/170871105-965fbdc5-c554-400b-bfd4-3b9425cc499f.png)
 
 ## Remove cups
 Another usage of `discopro` is to remove cups by flipping the word boxes. Sometimes swaps are also removed as a side effect.
@@ -68,7 +73,8 @@ from discopro.rewriting import contract
 diagram_connected = contract(diagram_connected)
 diagram_connected.draw()
 ```
-![image](https://user-images.githubusercontent.com/3414912/156356286-afc50cd2-07d8-47e9-9c41-23c52d5dabc9.png)
+![ba94e138-ad87-402f-bd72-b48803412c1d](https://user-images.githubusercontent.com/3414912/170871120-1806d5a9-f1f3-482d-be7d-b1f3caa763c2.png)
+
 
 Note that three cups were removed.
 
@@ -78,8 +84,12 @@ from discopro.anaphora import connect_anaphora_on_top
 diagram_connected = connect_anaphora_on_top(diagram, 3, 0)
 diagram_connected.draw()
 ```
-However, doing so would render the diagram not being in the pregroup form. Now try to contract the connected diagram:
+![b1f1b3ee-2186-47b9-b92c-16e1b486ab91](https://user-images.githubusercontent.com/3414912/170871163-ef974f86-0a3b-4777-b20c-451d83270f66.png)
+
+Note that doing so would render the diagram not being in the pregroup form. Now try to contract the connected diagram:
 ```
 contract(diagram_connected).draw()
 ```
+![6fb70a87-7aba-435f-9403-5143649aa869](https://user-images.githubusercontent.com/3414912/170871175-5d635128-aa65-4d9d-8fee-41752a1f9972.png)
+
 Notice that the word box for `Bob` also got flipped resulting in 2 more cups being removed.
