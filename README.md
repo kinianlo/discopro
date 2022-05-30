@@ -1,5 +1,5 @@
 # discopro
-A package to support running QNLP experiments involving anaphora. This package is meant to be used with [discopy](https://github.com/oxford-quantum-group/discopy).
+A package to support running QNLP experiments involving anaphora. This package is meant to be used with [discopy](https://github.com/oxford-quantum-group/discopy). An interactive demo can be found [here](http://discox.herokuapp.com/).
 
 ### Installation
 #### Method 1
