@@ -85,7 +85,7 @@ def draw(diagram, **params):
         raise TypeError(messages.type_err(Diagram, diagram))
     
     words, *grammar = diagram.foliation()
-    is_pregroup = all(isinstance(w, Word) for w in words.boxes) and \
+    is_pregroup = all(not w.dom for w in words.boxes) and \
         all(isinstance(c, Cup) or \
             isinstance(c, Swap) or \
             isinstance(c, Spider) \
