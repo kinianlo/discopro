@@ -9,6 +9,7 @@ def pregroup_draw(words, layers, **params):
     space = params.get('space', .5)
     width = params.get('width', 2.)
     fontsize = params.get('fontsize', None)
+    nodesize = params.get('nodesize', 1.)
 
     backend = TikzBackend(use_tikzstyles=params.get('use_tikzstyles', None))\
         if params.get('to_tikz', False)\
@@ -102,7 +103,7 @@ def pregroup_draw(words, layers, **params):
                 backend.draw_wire((x1, -y), midpoint, bend_in=True)
                 backend.draw_wire((x2, -y), midpoint, bend_in=True)
                 backend.draw_wire(midpoint, (middle, - y - h - h))
-                backend.draw_node(*midpoint)
+                backend.draw_node(*midpoint, nodesize=nodesize)
 
                 depths_to_remove = scan_y[2 * off:2 * off + 1]
                 new_gap_depth = 0.
