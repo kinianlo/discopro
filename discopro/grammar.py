@@ -83,21 +83,15 @@ def draw(diagram, **params):
     from discopro import drawing
     if not isinstance(diagram, Diagram):
         raise TypeError(messages.type_err(Diagram, diagram))
-    words, is_pregroup = Id(Ty()), True
-    for _, box, right in diagram.layers:
-        if isinstance(box, Word):
-            if right:  # word boxes should be tensored left to right.
-                is_pregroup = False
-                break
-            words = words @ box
-        else:
-            break
-    cups = diagram[len(words):].foliation().boxes\
-        if len(words) < len(diagram) else []
-    is_pregroup = is_pregroup and words and all(
-        isinstance(box, Cup) or isinstance(box, Swap)\
-        or isinstance(box, Spider)
-        for s in cups for box in s.boxes)
+    
+    words, *grammar = diagram.foliation()
+    is_pregroup = all(isinstance(w, Word) for w in words.boxes) and \
+        all(isinstance(c, Cup) or \
+            isinstance(c, Swap) or \
+            isinstance(c, Spider) \
+                for g in grammar for c in g.boxes)
+    
     if not is_pregroup:
         raise ValueError(messages.expected_pregroup())
-    drawing.pregroup_draw(words, cups, **params)
+
+    drawing.pregroup_draw(words, grammar, **params)
