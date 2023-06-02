@@ -138,7 +138,7 @@ def pregroup_draw(words, layers, **params):
             if y1 != y:
                 backend.draw_wire((x1, -y1), (x1, -y), bend_in=True)
             if y2 != y:
-                backend.draw_wire((x2, -y2), (x2, -y), bend_in=True)
+                backend.draw_wire((x2, -y2), (x2, -y), bend_out=True)
 
         for i, _ in enumerate(wires[-1].cod if wires else words.cod):
             label = ""
