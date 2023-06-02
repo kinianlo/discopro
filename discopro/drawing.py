@@ -113,8 +113,8 @@ def pregroup_draw(words, layers, **params):
                 if off > 0:
                     scan_y[2 * off - 1] = new_gap_depth
             elif isinstance(box, Spider) and len(box.dom) >= len(box.cod):
-                midpoint = ((max(xs_dom) - min(xs_dom)) / 2, - y - h)
                 xs_dom = scan_x[off:off + len(box.dom)]
+                midpoint = ((max(xs_dom) - min(xs_dom)) / 2, - y - h)
                 xs_cod = midpoint[0] if len(box.cod) == 1 \
                     else [min(xs_dom) + (max(xs_dom)-min(xs_dom)) * i / (len(box.cod) - 1) for i in range(len(box.cod))]
                 for x in xs_dom:
