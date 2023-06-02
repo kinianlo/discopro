@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='discopro',
-    version='0.1.1',
+    version='0.1.2',
     url='https://github.com/kinianlo/discopy-pronoun',
     author='Kin Ian Lo',
     author_email='keonlo123@gmail.com',
