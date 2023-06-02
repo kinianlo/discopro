@@ -83,7 +83,7 @@ def pregroup_draw(words, layers, **params):
                 scan_y = scan_y[:2 * off] + scan_y[2 * (off + 2):]
                 if off > 0:
                     scan_y[2 * off - 1] = new_gap_depth
-            if isinstance(box, Swap):
+            elif isinstance(box, Swap):
                 midpoint = (middle, - y - h)
                 backend.draw_wire((x1, -y), midpoint, bend_in=True)
                 backend.draw_wire((x2, -y), midpoint, bend_in=True)
@@ -91,14 +91,7 @@ def pregroup_draw(words, layers, **params):
                 backend.draw_wire(midpoint, (x2, - y - h - h), bend_out=True)
                 scan_y[2 * off] = y + h + h
                 scan_y[2 * (off + 1)] = y + h + h
-            if isinstance(box, Spider):
-                n_legs_in = len(box.dom)
-                n_legs_out = len(box.cod)
-                if n_legs_out > n_legs_in:
-                    raise ValueError("Cannot spiders with more outgoing legs than incoming legs.")
-                if n_legs_in != 2 and n_legs_out != 1:
-                    raise NotImplementedError()
-
+            elif isinstance(box, Spider) and len(box.dom) == 2 and len(box.cod) == 1:
                 midpoint = (middle, - y - h)
                 backend.draw_wire((x1, -y), midpoint, bend_in=True)
                 backend.draw_wire((x2, -y), midpoint, bend_in=True)
@@ -119,6 +112,28 @@ def pregroup_draw(words, layers, **params):
                 scan_y[2 * off] = y + h + h
                 if off > 0:
                     scan_y[2 * off - 1] = new_gap_depth
+            elif isinstance(box, Spider) and len(box.dom) >= len(box.cod):
+                midpoint = ((max(xs_dom) - min(xs_dom)) / 2, - y - h)
+                xs_dom = scan_x[off:off + len(box.dom)]
+                xs_cod = midpoint[0] if len(box.cod) == 1 \
+                    else [min(xs_dom) + (max(xs_dom)-min(xs_dom)) * i / (len(box.cod) - 1) for i in range(len(box.cod))]
+                for x in xs_dom:
+                    backend.draw_wire((x, -y), midpoint, bend_in=True)
+                for x in xs_cod:
+                    backend.draw_wire(midpoint, (x, - y - h - h))
+                backend.draw_node(*midpoint, nodesize=nodesize)
+                depths_to_remove = scan_y[2 * off:2 * (off + len(box.dom) - len(box.cod) + 1) + 1]
+                new_gap_depth = 0.
+                if len(depths_to_remove) > 0:
+                    new_gap_depth = max(
+                        max(depths_to_remove) + h + h,
+                        scan_y[2 * off - 1],
+                        scan_y[2 * (off + len(box.dom) - len(box.cod) + 1) + 1])
+                scan_x = scan_x[:off] + xs_cod + scan_x[off + len(box.dom):] 
+                scan_y = scan_y[:2 * off] + [y + h + h] * 2 * len(box.cod) + scan_y[2 * (off + len(box.dom)):]
+                if off > 0:
+                    scan_y[2 * off - 1] = new_gap_depth
+
                 
             if y1 != y:
                 backend.draw_wire((x1, -y1), (x1, -y), bend_in=True)
