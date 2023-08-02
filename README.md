@@ -48,7 +48,7 @@ draw(diagram)
 
 
 
-One of the main usage of `discopro` is to connect the pronoun (He) and the referent (John) with a `Cup(N, N.r)`:
+One of the main usages of `discopro` is to connect the pronoun (He) and the referent (John) with a `Cup(N, N.r)`:
 ```
 # Connect the pronoun `He` to the referent `Bob`
 from discopro.anaphora import connect_anaphora
