@@ -115,12 +115,13 @@ def pregroup_draw(words, layers, **params):
             elif isinstance(box, Spider) and len(box.dom) >= len(box.cod):
                 xs_dom = scan_x[off:off + len(box.dom)]
                 midpoint = ((max(xs_dom) - min(xs_dom)) / 2, - y - h)
-                xs_cod = midpoint[0] if len(box.cod) == 1 \
+                cod_sep = (max(xs_dom) - min(xs_dom)) / (len(box.dom) - 1)
+                xs_cod = [midpoint[0]] if len(box.cod) == 1 \
                     else [min(xs_dom) + (max(xs_dom)-min(xs_dom)) * i / (len(box.cod) - 1) for i in range(len(box.cod))]
                 for x in xs_dom:
                     backend.draw_wire((x, -y), midpoint, bend_in=True)
                 for x in xs_cod:
-                    backend.draw_wire(midpoint, (x, - y - h - h))
+                    backend.draw_wire(midpoint, (x, - y - h - h), bend_out=True)
                 backend.draw_node(*midpoint, nodesize=nodesize)
                 depths_to_remove = scan_y[2 * off:2 * (off + len(box.dom) - len(box.cod) + 1) + 1]
                 new_gap_depth = 0.
@@ -138,7 +139,7 @@ def pregroup_draw(words, layers, **params):
             if y1 != y:
                 backend.draw_wire((x1, -y1), (x1, -y), bend_in=True)
             if y2 != y:
-                backend.draw_wire((x2, -y2), (x2, -y), bend_out=True)
+                backend.draw_wire((x2, -y2), (x2, -y), bend_in=True)
 
         for i, _ in enumerate(wires[-1].cod if wires else words.cod):
             label = ""
