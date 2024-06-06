@@ -1,4 +1,4 @@
-from discopy import Word
+from lambeq.backend.grammar import Word
 from discopy.rigid import Diagram
 from discopy import messages
 

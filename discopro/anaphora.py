@@ -1,4 +1,5 @@
-from discopy import Word, Diagram, Id, Ty, Cup, Cap
+# from discopy.grammar.pregroup import Diagram, Id, Ty, Cup, Cap
+from lambeq.backend.grammar import Word, Diagram, Id, Ty, Cup, Cap
 from discopro.grammar import words_and_cups, is_pregroup
 
 def _surround_cup(diag, cup):
